@@ -25,7 +25,7 @@ require("./passport-config")(passport);
 
 app.use(cors()); // todo: configure this
 app.use(express.json({ extended: false }));
-app.use(requestLogger);
+//app.use(requestLogger);
 
 // fix deprecation warnings
 mongoose.set("useFindAndModify", false);
@@ -35,7 +35,7 @@ logger.info("connecting to", config.MONGODB_URI);
 mongoose
   .connect(config.MONGODB_URI, { useNewUrlParser: true })
   .then(() => {
-    logger.info("connected to MongoDB"); //error vai info
+    logger.info("connected to MongoDB");
   })
   .catch(error => {
     logger.error("error connection to MongoDB:", error.message);

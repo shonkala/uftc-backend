@@ -1,14 +1,8 @@
 const scoresRouter = require("express").Router();
-const Score = require("../models/Score");
 const Workout = require("../models/Workout");
 const Challenge = require("../models/Challenge");
 const Achievement = require("../models/Achievement");
-const passport = require("passport");
 const moment = require("moment");
-
-const differenceInWeeks = (dt2, dt1) => {
-  return moment(dt2).diff(moment(dt1), "weeks");
-};
 
 const abbreviate = name => {
   const nameArray = name.split(" ");
@@ -76,7 +70,9 @@ scoresRouter.get("/weekly", async (req, res) => {
 
   const startDate = new Date(challenges[0].startDate);
   const endDate = new Date(challenges[0].endDate);
-  const weeks = differenceInWeeks(endDate, startDate);
+  const weeks = Math.ceil(
+    moment(endDate).diff(moment(startDate), "weeks", true)
+  );
 
   const workouts = await Workout.find({})
     .sort({ user: "asc" })
@@ -121,7 +117,10 @@ scoresRouter.get("/weekly", async (req, res) => {
     }
     const points = w.activity.points;
     w.instances.forEach(i => {
-      const weekIndex = differenceInWeeks(new Date(i.date), startDate);
+      const weekIndex = moment(new Date(i.date)).diff(
+        moment(startDate),
+        "weeks"
+      );
       const pb = weeklyScores[userIndex].pointBonus;
       const oldValue = weeklyScores[userIndex].data[weekIndex];
       weeklyScores[userIndex].data[weekIndex] = Math.round(
@@ -139,6 +138,42 @@ scoresRouter.get("/weekly", async (req, res) => {
   );
 
   res.json(weeklyScores);
+});
+
+scoresRouter.get("/byactivity", async (req, res) => {
+  const workouts = await Workout.find({})
+    .populate("activity", "points")
+    .populate("user", ["name", "location", "activeChallenge"]);
+
+  const challenges = await Challenge.find({});
+
+  const result = {};
+  for (let w of workouts.filter(w => w.user.activeChallenge !== null)) {
+    // spread syntax only works on iterable objects
+    if (result[w.activity._id.toString()] === undefined) {
+      result[w.activity._id.toString()] = [];
+    }
+
+    const challenge = challenges.find(c => {
+      return c._id.toString() === w.user.activeChallenge.toString();
+    });
+
+    result[w.activity._id.toString()] = [
+      ...result[w.activity._id.toString()],
+      {
+        name: abbreviate(w.user.name),
+        location: w.user.location,
+        series: challenge.seriesTitle,
+        total: Math.floor(
+          w.instances.reduce((sum, instance) => sum + instance.amount, 0) *
+            w.activity.points *
+            +challenge.pointBonus
+        )
+      }
+    ];
+  }
+
+  res.json(result);
 });
 
 module.exports = scoresRouter;
